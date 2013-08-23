@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+
 #
 # $Id: pgtop 86 2008-07-29 20:07:45Z Cosimo $
 
@@ -149,7 +150,7 @@ GetOptions(
     "idle|i"              => \$config{idle},
     "resolve|r"           => \$config{resolve},
     "prompt!"             => \$config{prompt},
-    "long|!"              => \$config{long_nums},
+    "long|long_nums|l!"   => \$config{long_nums},
 );
 
 ## User may have put the port with the host.
@@ -520,8 +521,7 @@ while (1)
 
         if ($id =~ /^\d+$/)
         {
-            # TODO How to kill a process?
-            Execute("KILL $id");
+            Execute("select pg_cancel_backend($id)");
         }
         else
         {
@@ -896,17 +896,18 @@ sub GetData()
     my $proc_cmd = <<SQL;
 
 SELECT datname         AS "db",
-       procpid         AS "Id",
+       pid             AS "Id",
        usename         AS "User",
        (
-         CASE current_query
+         CASE query
          WHEN '<IDLE>' THEN 'Sleep'
          ELSE 'Query'
          END
        )               AS "Command",
-       current_query   AS "Info",
+       query           AS "Info",
+       EXTRACT(EPOCH FROM current_timestamp-query_start) AS "Time",
        'local'         AS "Host"
-  FROM pg_stat_activity
+  FROM pg_stat_activity WHERE state='active'
 SQL
 
     my @data = Hashes($proc_cmd);
@@ -990,11 +991,10 @@ SQL
         # Check to see if we can skip out.  We skip out if we know the
         # given line doesn't match.
 
-# TODO
-#        #next if (($thread->{Command} eq "Sleep")
-#        next if (($thread->{Command} eq 'Sleep')
-#                 and
-#                 (not $config{idle}));
+        #next if (($thread->{Command} eq "Sleep")
+        next if (($thread->{Command} eq 'Sleep')
+                 and
+                 (not $config{idle}));
 #
 # TODO
 #        next if (($thread->{Command} eq "Binlog Dump")
